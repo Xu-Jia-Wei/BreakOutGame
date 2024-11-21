@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>打砖块</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.55.2/phaser.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+    <script>
+        // 游戏配置
+        const config = {
+            type: Phaser.AUTO,
+            width: 800,
+            height: 600,
+            scale: {
+                mode: Phaser.Scale.RESIZE,
+                autoCenter: Phaser.Scale.CENTER_BOTH
+            },
+            scene: {
+                preload,
+                create,
+                update
+            },
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: false
+                },
+            }
+        };
+
+        // 创建游戏实例
+        const game = new Phaser.Game(config);
+
+        // 游戏状态变量
+        let ball, paddle, bricks, score = 0, scoreText, gameOverText, restartText, gameStarted = false;
+
+        function preload() {
+            this.load.image('ball', 'image/ball.png');
+            this.load.image('brick', 'image/brick.png');
+            this.load.image('paddle', 'image/paddle.png');
+        }
+
+        function create() {
+            // 创建小球
+            ball = this.physics.add.image(400, 300, 'ball');
+            ball.setBounce(1, 1);
+            ball.setCollideWorldBounds(true);
+
+            // 创建挡板
+            paddle = this.physics.add.image(400, 550, 'paddle').setImmovable(true);
+
+            // 创建砖块
+            bricks = this.physics.add.staticGroup();
+            for (let i = 0; i < 5; i++) {
+                for (let j = 0; j < 4; j++) {
+                    bricks.create(150 + i * 130, 100 + j * 40, 'brick');
+                }
+            }
+
+            // 添加得分文本
+            scoreText = this.add.text(16, 16, 'Score: 0', {
+                fontSize: '32px',
+                fill: '#fff'
+            });
+
+            // 游戏开始提示文本
+            gameStartText = this.add.text(this.cameras.main.centerX, this.cameras.main.centerY - 50, 'Press SPACE to start', {
+                fontSize: '32px',
+                fill: '#fff'
+            }).setOrigin(0.5);
+
+            // 游戏开始提示文本
+            gameOverText = this.add.text(this.cameras.main.centerX, this.cameras.main.centerY - 50, 'You Lose', {
+                fontSize: '32px',
+                fill: '#fff'
+            }).setOrigin(0.5).setVisible(false);
+
+
+            // 游戏失败文本
+            restartText = this.add.text(this.cameras.main.centerX, this.cameras.main.centerY + 50, 'Press SPACE to restart', {
+                fontSize: '32px',
+                fill: '#fff'
+            }).setOrigin(0.5).setVisible(false);
+
+            // 设置小球与砖块的碰撞
+            this.physics.add.collider(ball, bricks, hitBrick, null, this);
+            // 设置小球与挡板的碰撞
+            this.physics.add.collider(ball, paddle, hitPaddle, null, this);
+
+            // 监听键盘输入
+            this.input.keyboard.on('keydown-SPACE', function () {
+                if (!gameStarted) {
+                    startGame.call(this); // 开始
+                } 
+                else if (restartText.visible) {
+                    restartGame.call(this); // 重新开始
+                }
+            });
+        }
+
+        function startGame() {
+            gameStarted = true;
+            gameStartText.setVisible(false);
+            gameOverText.setVisible(false);
+            restartText.setVisible(false); // 游戏开始时隐藏重新开始文本
+            ball.setPosition(400, 300);
+            ball.setVelocity(200, 200); // 给小球设置速度
+            paddle.setPosition(400, 550);
+            this.physics.world.enable(ball);
+            this.physics.world.enable(paddle);
+        } 
+
+        function update() {
+            if (!gameStarted) return; // 如果游戏尚未开始，则不进行其他更新
+
+            // 控制挡板跟随鼠标移动
+            let mouseX = this.input.x;
+            let paddleSpeed = 1000;
+            if (mouseX < paddle.x) {
+                paddle.setVelocityX(-paddleSpeed);
+            } else if (mouseX > paddle.x) {
+                paddle.setVelocityX(paddleSpeed);
+            } else {
+                paddle.setVelocityX(0);
+            }
+
+            // 检查小球是否掉落到屏幕下方，游戏失败
+            if (ball.y > config.height) {
+                gameOver.call(this);
+            }
+
+            // 检查游戏是否胜利
+            checkVictory.call(this);
+        }
+
+
+        // 游戏失败函数
+        function gameOver() {
+            ball.setVelocity(0, 0); // 停止小球
+            paddle.setVelocityX(0); // 停止挡板
+
+            gameOverText.setVisible(true);
+            restartText.setVisible(true);
+        }
+
+        // 游戏重新开始
+        function restartGame() {
+            score = 0;
+            scoreText.setText('Score: 0');
+            bricks.clear(true, true); // 清除现有砖块
+            for (let i = 0; i < 5; i++) {
+                for (let j = 0; j < 4; j++) {
+                    bricks.create(150 + i * 130, 100 + j * 40, 'brick');
+                }
+            }
+            startGame.call(this); // 重新开始游戏
+        }
+
+        // 碰撞砖块时触发的函数
+        function hitBrick(ball, brick) {
+            brick.disableBody(true, true); // 隐藏并禁用砖块
+            score += 10;
+            scoreText.setText('Score: ' + score); // 更新得分
+        }
+
+        // 碰撞挡板时触发的函数
+        function hitPaddle(ball, paddle) {
+            const diff = ball.x - paddle.x;
+            ball.setVelocityX(diff * 10);
+        }
+
+        // 检查胜利条件
+        function checkVictory() {
+            if (bricks.countActive() === 0) {
+                alert('You win!');
+                this.scene.restart();
+            }
+        }
+    </script>
+</body>
+
+</html>
